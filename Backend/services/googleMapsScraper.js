@@ -11,6 +11,17 @@ const {
   extractPhoneFromText,
 } = require("./websiteScraper");
 
+const toValidPhone = (...values) => {
+  for (const value of values) {
+    const extracted = extractPhoneFromText(String(value || ""));
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return "";
+};
+
 const sanitizeUrl = (value) => {
   const normalized = normalizeWebsiteUrl(value);
 
@@ -98,7 +109,14 @@ const scrapeGoogleMapsPlaceDetails = async (browser, placeUrl) => {
 const scrapeGoogleMaps = async ({ query, maxResults = 20, headless = true, enrich = false }) => {
   const browser = await puppeteer.launch({
     headless,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--single-process",
+      "--no-zygote",
+    ],
   });
 
   const page = await browser.newPage();
@@ -152,37 +170,30 @@ const scrapeGoogleMaps = async ({ query, maxResults = 20, headless = true, enric
     }, maxResults);
 
     const scrapedData = await page.evaluate((targetCount) => {
-      const extractPhone = (text) => {
-        const phoneRegex = /\+?[\d()\s.-]{8,24}\d/g;
-        const matches = String(text || "").match(phoneRegex) || [];
-
-        for (const rawMatch of matches) {
-          const digitsOnly = rawMatch.replace(/\D/g, "");
-
-          if (digitsOnly.length >= 8 && digitsOnly.length <= 15) {
-            return rawMatch.trim();
-          }
-        }
-
-        return "";
-      };
-
       const cards = Array.from(document.querySelectorAll('div[role="article"]')).slice(0, targetCount);
 
       return cards.map((card) => {
         const name = card.querySelector(".qBF1Pd")?.textContent?.trim() || "";
-        const detailText = Array.from(card.querySelectorAll(".W4Efsd"))
+        const detailText = Array.from(card.querySelectorAll(".W4Efsd, .W4Efsd *"))
           .map((node) => node.textContent?.trim() || "")
           .filter(Boolean)
           .join(" ");
-        const phone = extractPhone(detailText);
+        const ariaText = [
+          card.getAttribute("aria-label") || "",
+          card.querySelector('a[aria-label*="Call" i]')?.getAttribute("aria-label") || "",
+          card.querySelector('button[aria-label*="Call" i]')?.getAttribute("aria-label") || "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        const phoneCandidates = `${detailText} ${ariaText}`.trim();
         const website = card.querySelector('a[data-value="Website"]')?.href || "";
         const placeUrl = card.querySelector('a.hfpxzc')?.href || card.querySelector('a[href*="google.com/maps/place"]')?.href || "";
 
         return {
           name,
           location: detailText,
-          phone,
+          phoneCandidates,
           email: "",
           website,
           placeUrl,
@@ -224,15 +235,49 @@ const scrapeGoogleMaps = async ({ query, maxResults = 20, headless = true, enric
     }
 
     if (!enrich) {
-      return scrapedData
+      const baseFast = scrapedData
         .filter((lead) => Boolean(lead.name))
         .map((lead) => ({
           name: lead.name,
           location: lead.location || "",
-          phone: lead.phone || "",
+          phone: toValidPhone(lead.phoneCandidates, lead.location),
           email: lead.email || "",
           website: sanitizeUrl(lead.website) || "",
+          placeUrl: lead.placeUrl || "",
         }));
+
+      // Fast mode fallback: fetch place details for entries missing phone/website.
+      const fastFixed = await mapWithConcurrency(baseFast, 3, async (lead, index) => {
+        const needsRecovery = !lead.phone || !lead.website;
+        if (!needsRecovery || index >= 15) {
+          return lead;
+        }
+
+        const placeDetails = await withTimeout(
+          scrapeGoogleMapsPlaceDetails(browser, lead.placeUrl),
+          7000,
+          {}
+        );
+
+        const recoveredWebsite = sanitizeUrl(lead.website || placeDetails.website);
+        const recoveredPhone = toValidPhone(
+          lead.phone,
+          placeDetails.phone,
+          placeDetails.location,
+          lead.location
+        );
+
+        return {
+          name: lead.name,
+          location: lead.location || placeDetails.location || "",
+          phone: recoveredPhone,
+          email: lead.email || "",
+          website: recoveredWebsite || "",
+          placeUrl: lead.placeUrl,
+        };
+      });
+
+      return fastFixed.map(({ placeUrl, ...lead }) => lead);
     }
 
     const enriched = await mapWithConcurrency(scrapedData, 4, async (lead, index) => {
@@ -246,15 +291,15 @@ const scrapeGoogleMaps = async ({ query, maxResults = 20, headless = true, enric
         : {};
 
       const normalizedWebsite = sanitizeUrl(lead.website || placeDetails.website);
-      let resolvedPhone = lead.phone || placeDetails.phone || "";
+      let resolvedPhone = toValidPhone(lead.phoneCandidates, lead.location, placeDetails.phone, placeDetails.location);
 
-      if (!resolvedPhone && normalizedWebsite && index < 10) {
+      if (!resolvedPhone && normalizedWebsite && index < 20) {
         const websiteContact = await withTimeout(
           scrapeWebsiteContactInfo(normalizedWebsite),
-          10000,
+          12000,
           { phone: "" }
         );
-        resolvedPhone = websiteContact.phone || "";
+        resolvedPhone = toValidPhone(websiteContact.phone);
       }
 
       return {

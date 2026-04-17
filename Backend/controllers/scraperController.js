@@ -80,6 +80,9 @@ const startScraper = async (req, res) => {
       upsertedLeads.push(savedLead);
     }
 
+    const leadsWithPhone = upsertedLeads.filter((lead) => String(lead.phone || "").trim()).length;
+    const leadsWithWebsite = upsertedLeads.filter((lead) => String(lead.website || "").trim()).length;
+
     return res.status(200).json({
       success: true,
       message: "Scraper completed successfully.",
@@ -88,6 +91,10 @@ const startScraper = async (req, res) => {
       enrichmentEnabled: useEnrichment,
       totalScraped: scrapedLeads.length,
       totalStored: upsertedLeads.length,
+      quality: {
+        leadsWithPhone,
+        leadsWithWebsite,
+      },
       leads: upsertedLeads,
     });
   } catch (error) {
