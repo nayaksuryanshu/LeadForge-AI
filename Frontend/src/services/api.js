@@ -1,7 +1,23 @@
 import axios from 'axios'
 
+const resolveApiBaseUrl = () => {
+  const raw = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+
+  if (!raw) {
+    return '/api'
+  }
+
+  // If a full backend URL is provided without /api, normalize it.
+  if (/^https?:\/\//i.test(raw)) {
+    const normalized = raw.replace(/\/+$/, '')
+    return normalized.endsWith('/api') ? normalized : `${normalized}/api`
+  }
+
+  return raw
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: resolveApiBaseUrl(),
   timeout: 15000,
 })
 
