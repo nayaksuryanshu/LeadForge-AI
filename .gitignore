@@ -1,0 +1,101 @@
+# Monorepo root ignore for LeadForge AI (Backend + Frontend)
+
+# ------------------------------
+# Dependencies
+# ------------------------------
+node_modules/
+Backend/node_modules/
+Frontend/node_modules/
+
+# ------------------------------
+# Environment and secrets
+# ------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
+!Backend/.env.sample
+
+Frontend/.env
+Frontend/.env.*
+!Frontend/.env.example
+!Frontend/.env.sample
+
+# Common secret/certificate artifacts
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*serviceAccount*.json
+
+# ------------------------------
+# Build output and coverage
+# ------------------------------
+dist/
+build/
+coverage/
+.nyc_output/
+
+Backend/coverage/
+Frontend/dist/
+Frontend/dist-ssr/
+Frontend/coverage/
+
+# ------------------------------
+# Logs and runtime files
+# ------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+*.pid
+*.pid.lock
+*.seed
+*.out
+*.err
+
+# ------------------------------
+# Caches and temporary files
+# ------------------------------
+.cache/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+.vite/
+.tmp/
+tmp/
+temp/
+
+# ------------------------------
+# OS / editor files
+# ------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ------------------------------
+# Optional local databases/dumps
+# ------------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+*.dump
