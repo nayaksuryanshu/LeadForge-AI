@@ -1,11 +1,4 @@
-const path = require("path");
-const { execSync } = require("child_process");
-
-if (!process.env.PUPPETEER_CACHE_DIR) {
-  process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, "..", ".cache", "puppeteer");
-}
-
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
 const {
   normalizeWebsiteUrl,
   scrapeWebsiteContactInfo,
@@ -105,61 +98,16 @@ const mapWithConcurrency = async (items, limit, mapper) => {
   return results;
 };
 
-let browserInstallPromise = null;
+const launchBrowserWithRecovery = async () => {
+  const browserWSEndpoint = `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`;
 
-const ensureChromeInstalled = async () => {
-  if (!browserInstallPromise) {
-    browserInstallPromise = (async () => {
-      const cacheDir = process.env.PUPPETEER_CACHE_DIR;
-
-      console.log(`[scraper] Installing Puppeteer Chrome to cache: ${cacheDir}`);
-      execSync("npx puppeteer browsers install chrome", {
-        stdio: "inherit",
-        env: {
-          ...process.env,
-          PUPPETEER_CACHE_DIR: cacheDir,
-        },
-      });
-      console.log("[scraper] Puppeteer Chrome install completed.");
-    })()
-      .catch((error) => {
-        browserInstallPromise = null;
-        throw error;
-      })
-      .then(() => {
-        browserInstallPromise = null;
-      });
+  if (!process.env.BROWSERLESS_API_KEY) {
+    throw new Error("BROWSERLESS_API_KEY is not set.");
   }
 
-  return browserInstallPromise;
-};
-
-const launchBrowserWithRecovery = async (headless) => {
-  const isLinux = process.platform === "linux";
-  const launchOptions = {
-    headless,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      ...(isLinux ? ["--no-zygote"] : []),
-    ],
-  };
-
-  try {
-    return await puppeteer.launch(launchOptions);
-  } catch (error) {
-    const message = String(error?.message || "");
-    const isMissingChrome = /Could not find Chrome/i.test(message);
-
-    if (!isMissingChrome) {
-      throw error;
-    }
-
-    await ensureChromeInstalled();
-    return puppeteer.launch(launchOptions);
-  }
+  return puppeteer.connect({
+    browserWSEndpoint,
+  });
 };
 
 const isRetryableScrapeError = (error) => {
