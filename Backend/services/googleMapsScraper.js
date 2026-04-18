@@ -191,16 +191,34 @@ const scrapeGoogleMapsPlaceDetails = async (browser, placeUrl) => {
     return await detailPage.evaluate(() => {
       const getText = (selector) => document.querySelector(selector)?.textContent?.trim() || "";
       const metaButtons = Array.from(document.querySelectorAll('button[data-item-id], a[data-item-id]'));
+      const extraPhoneNodes = Array.from(
+        document.querySelectorAll(
+          'a[href^="tel:"], button[aria-label*="call" i], a[aria-label*="call" i], button[aria-label*="phone" i], a[aria-label*="phone" i]'
+        )
+      );
 
       const websiteButton =
         metaButtons.find((el) => (el.getAttribute("data-item-id") || "").includes("authority")) ||
         metaButtons.find((el) => (el.getAttribute("data-item-id") || "").includes("website"));
       const phoneButton = metaButtons.find((el) => (el.getAttribute("data-item-id") || "").includes("phone"));
+      const extraPhoneText = extraPhoneNodes
+        .map((el) => {
+          const href = el.getAttribute("href") || "";
+          const aria = el.getAttribute("aria-label") || "";
+          const txt = el.textContent || "";
+          return `${href} ${aria} ${txt}`.trim();
+        })
+        .filter(Boolean)
+        .join(" ");
 
       return {
         name: getText("h1.DUwDvf"),
         location: getText('button[data-item-id="address"]'),
-        phone: phoneButton?.textContent?.trim() || phoneButton?.getAttribute("aria-label") || "",
+        phone:
+          phoneButton?.textContent?.trim() ||
+          phoneButton?.getAttribute("aria-label") ||
+          extraPhoneText ||
+          "",
         website: websiteButton?.getAttribute("href") || websiteButton?.textContent?.trim() || "",
       };
     });
@@ -276,15 +294,19 @@ const scrapeGoogleMaps = async ({ query, maxResults = 20, headless = true, enric
             .map((node) => node.textContent?.trim() || "")
             .filter(Boolean)
             .join(" ");
+          const cardText = String(card.innerText || "").replace(/\s+/g, " ").trim();
           const ariaText = [
             card.getAttribute("aria-label") || "",
             card.querySelector('a[aria-label*="Call" i]')?.getAttribute("aria-label") || "",
             card.querySelector('button[aria-label*="Call" i]')?.getAttribute("aria-label") || "",
+            card.querySelector('a[aria-label*="Phone" i]')?.getAttribute("aria-label") || "",
+            card.querySelector('button[aria-label*="Phone" i]')?.getAttribute("aria-label") || "",
+            card.querySelector('a[href^="tel:"]')?.getAttribute("href") || "",
           ]
             .filter(Boolean)
             .join(" ");
 
-          const phoneCandidates = `${detailText} ${ariaText}`.trim();
+          const phoneCandidates = `${ariaText} ${cardText} ${detailText}`.trim();
           const website = card.querySelector('a[data-value="Website"]')?.href || "";
           const placeUrl =
             card.querySelector("a.hfpxzc")?.href ||

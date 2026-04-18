@@ -49,7 +49,13 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.message || error.message || 'Something went wrong'
 
-    return Promise.reject(new Error(message))
+    // Keep axios metadata (status/response/config) so callers can branch on status codes.
+    if (error && typeof error === 'object') {
+      error.message = message
+      error.userMessage = message
+    }
+
+    return Promise.reject(error)
   },
 )
 
