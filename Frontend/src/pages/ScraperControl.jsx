@@ -1,25 +1,6 @@
 import { useState } from 'react'
 import api from '../services/api'
 
-const resolveScraperEndpoint = () => {
-  if (typeof window === 'undefined') {
-    return '/scraper/start'
-  }
-
-  const hostname = String(window.location?.hostname || '').toLowerCase()
-  const isVercelHost = hostname === 'vercel.app' || hostname.endsWith('.vercel.app')
-
-  if (!isVercelHost) {
-    return '/scraper/start'
-  }
-
-  const rawDirectBase = String(import.meta.env.VITE_RENDER_API_BASE_URL || '').trim()
-  const directBase = rawDirectBase || 'https://leadforge-ai-2p92.onrender.com/api'
-  const normalizedBase = directBase.replace(/\/+$/, '')
-
-  return `${normalizedBase}/scraper/start`
-}
-
 function ScraperControl() {
   const [query, setQuery] = useState('restaurants in Indore')
   const [results, setResults] = useState(20)
@@ -34,6 +15,33 @@ function ScraperControl() {
   const leadsWithWebsites = sampleLeads.filter((lead) => String(lead.website || '').trim()).length
   const modeLabel = useEnrichment ? 'Deep enrichment' : 'Fast mode'
 
+  const postScraperStartWithRetry = async (payload) => {
+    const maxAttempts = 3
+    let lastError
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await api.post('/scraper/start', payload, {
+          timeout: 240000,
+        })
+      } catch (error) {
+        const status = error?.response?.status
+        const isRetryableStatus = status === 502 || status === 503 || status === 504
+        const isRetryableNetworkError = !status && String(error?.message || '').toLowerCase().includes('network')
+        const shouldRetry = attempt < maxAttempts && (isRetryableStatus || isRetryableNetworkError)
+
+        if (!shouldRetry) {
+          throw error
+        }
+
+        lastError = error
+        await new Promise((resolve) => setTimeout(resolve, 1200 * attempt))
+      }
+    }
+
+    throw lastError || new Error('Scraper request failed after retries.')
+  }
+
   const handleStart = async () => {
     setError('')
     setIsRunning(true)
@@ -46,25 +54,7 @@ function ScraperControl() {
     }
 
     try {
-      let response
-
-      try {
-        response = await api.post('/scraper/start', payload, {
-          timeout: 180000,
-        })
-      } catch (firstError) {
-        const status = firstError?.response?.status
-        const directEndpoint = resolveScraperEndpoint()
-        const shouldRetryDirect = status === 502 && directEndpoint !== '/scraper/start'
-
-        if (!shouldRetryDirect) {
-          throw firstError
-        }
-
-        response = await api.post(directEndpoint, payload, {
-          timeout: 240000,
-        })
-      }
+      const response = await postScraperStartWithRetry(payload)
 
       setLastRun(response.data)
 
