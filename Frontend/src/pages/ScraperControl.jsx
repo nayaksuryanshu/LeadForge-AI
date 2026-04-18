@@ -1,6 +1,25 @@
 import { useState } from 'react'
 import api from '../services/api'
 
+const resolveScraperEndpoint = () => {
+  if (typeof window === 'undefined') {
+    return '/scraper/start'
+  }
+
+  const hostname = String(window.location?.hostname || '').toLowerCase()
+  const isVercelHost = hostname === 'vercel.app' || hostname.endsWith('.vercel.app')
+
+  if (!isVercelHost) {
+    return '/scraper/start'
+  }
+
+  const rawDirectBase = String(import.meta.env.VITE_RENDER_API_BASE_URL || '').trim()
+  const directBase = rawDirectBase || 'https://leadforge-ai-2p92.onrender.com/api'
+  const normalizedBase = directBase.replace(/\/+$/, '')
+
+  return `${normalizedBase}/scraper/start`
+}
+
 function ScraperControl() {
   const [query, setQuery] = useState('restaurants in Indore')
   const [results, setResults] = useState(20)
@@ -20,14 +39,32 @@ function ScraperControl() {
     setIsRunning(true)
     setProgress(20)
 
+    const payload = {
+      query,
+      maxResults: results,
+      enrich: useEnrichment,
+    }
+
     try {
-      const response = await api.post('/scraper/start', {
-        query,
-        maxResults: results,
-        enrich: useEnrichment,
-      }, {
-        timeout: 180000,
-      })
+      let response
+
+      try {
+        response = await api.post('/scraper/start', payload, {
+          timeout: 180000,
+        })
+      } catch (firstError) {
+        const status = firstError?.response?.status
+        const directEndpoint = resolveScraperEndpoint()
+        const shouldRetryDirect = status === 502 && directEndpoint !== '/scraper/start'
+
+        if (!shouldRetryDirect) {
+          throw firstError
+        }
+
+        response = await api.post(directEndpoint, payload, {
+          timeout: 240000,
+        })
+      }
 
       setLastRun(response.data)
 

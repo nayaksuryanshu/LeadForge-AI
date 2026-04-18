@@ -101,6 +101,7 @@ If no SMTP credentials are configured, the app uses an Ethereal test account for
 ### Frontend env (optional)
 Create Frontend/.env only if needed:
 - VITE_API_BASE_URL
+- VITE_RENDER_API_BASE_URL (optional direct backend API URL for scraper fallback on Vercel, e.g. https://leadforge-ai-2p92.onrender.com/api)
 
 By default, Vite proxies /api to http://localhost:5000.
 
