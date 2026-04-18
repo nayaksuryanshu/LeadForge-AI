@@ -1,4 +1,14 @@
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
+
+const connectBrowser = async () => {
+  if (!process.env.BROWSERLESS_API_KEY) {
+    throw new Error("BROWSERLESS_API_KEY is not set.");
+  }
+
+  return puppeteer.connect({
+    browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`,
+  });
+};
 
 const normalizeWebsiteUrl = (url) => {
   const trimmed = String(url || "").trim();
@@ -71,10 +81,7 @@ const scrapeWebsiteContactInfo = async (website) => {
     };
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await connectBrowser();
 
   try {
     const page = await browser.newPage();
@@ -137,10 +144,7 @@ const scrapeWebsiteContent = async (website) => {
     };
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await connectBrowser();
 
   try {
     const page = await browser.newPage();
