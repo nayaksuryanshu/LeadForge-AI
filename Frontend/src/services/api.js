@@ -1,6 +1,17 @@
 import axios from 'axios'
 
 const resolveApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hostname = String(window.location?.hostname || '').toLowerCase()
+    const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1'
+    const isVercelHost = hostname === 'vercel.app' || hostname.endsWith('.vercel.app')
+
+    // Keep browser requests same-origin to rely on Vite/Vercel proxying and avoid CORS errors.
+    if (isLocalHost || isVercelHost) {
+      return '/api'
+    }
+  }
+
   const raw = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
   if (!raw) {
