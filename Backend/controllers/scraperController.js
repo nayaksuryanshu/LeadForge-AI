@@ -1,5 +1,6 @@
 const Lead = require("../models/Lead");
 const { scrapeGoogleMaps } = require("../services/googleMapsScraper");
+const { sanitizeLeadPhone } = require("../utils/phoneSanitizer");
 
 const startScraper = async (req, res) => {
   try {
@@ -58,7 +59,7 @@ const startScraper = async (req, res) => {
         },
         {
           $set: {
-            phone: lead.phone || "",
+            phone: sanitizeLeadPhone(lead.phone),
             email: lead.email || "",
             website: lead.website || "",
           },

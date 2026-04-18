@@ -16,14 +16,43 @@ const normalizeWebsiteUrl = (url) => {
 
 const extractPhoneFromText = (text) => {
   const source = String(text || "");
-  const phoneRegex = /\+?[\d()(\s.-]{8,24}\d/g;
-  const matches = source.match(phoneRegex) || [];
+  const compactSource = source.replace(/\s+/g, " ");
+  const patterns = [
+    /\+91[\s-]?[6-9]\d{9}\b/g,
+    /\b0?[6-9]\d{9}\b/g,
+    /\(\d{3,5}\)\s*\d{5,8}\b/g,
+    /\b\d{3,5}[\s-]\d{5,8}\b/g,
+  ];
 
-  for (const match of matches) {
+  for (const pattern of patterns) {
+    const matches = compactSource.match(pattern) || [];
+
+    for (const match of matches) {
     const digitsOnly = match.replace(/\D/g, "");
+    const repeatedChunkMatch = digitsOnly.match(/^(\d{2,3})\1{2,}$/);
 
-    if (digitsOnly.length >= 8 && digitsOnly.length <= 15) {
-      return match.trim();
+      if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+        continue;
+      }
+
+      if (/^(\d)\1+$/.test(digitsOnly)) {
+        continue;
+      }
+
+      if (repeatedChunkMatch) {
+        continue;
+      }
+
+      if (/\d\.\d/.test(match)) {
+        continue;
+      }
+
+      const cleaned = match.trim();
+
+      // Accept realistic numeric formats only.
+      if (/^\+?\d{10,15}$/.test(cleaned) || /[\s()-]/.test(cleaned)) {
+        return cleaned;
+      }
     }
   }
 

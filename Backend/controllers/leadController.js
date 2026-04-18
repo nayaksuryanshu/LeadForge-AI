@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Lead = require("../models/Lead");
 const Note = require("../models/Note");
 const SentEmail = require("../models/SentEmail");
+const { sanitizeLeadPhone } = require("../utils/phoneSanitizer");
 
 const getLeads = async (req, res) => {
   try {
@@ -13,6 +14,11 @@ const getLeads = async (req, res) => {
     };
 
     const leads = await Lead.find(filter).sort({ createdAt: -1 });
+    const normalizedLeads = leads.map((lead) => {
+      const jsonLead = lead.toObject();
+      jsonLead.phone = sanitizeLeadPhone(jsonLead.phone);
+      return jsonLead;
+    });
     const availableQueries = await Lead.distinct("scrapeQuery", {
       ownerId: req.user._id,
       scrapeQuery: { $ne: "" },
@@ -20,10 +26,10 @@ const getLeads = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      count: leads.length,
+      count: normalizedLeads.length,
       selectedQuery: scrapeQuery,
       availableQueries: availableQueries.sort((a, b) => b.localeCompare(a)),
-      leads,
+      leads: normalizedLeads,
     });
   } catch (error) {
     console.error("Error in getLeads:", error);
@@ -60,7 +66,10 @@ const getLeadById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      lead,
+      lead: {
+        ...lead.toObject(),
+        phone: sanitizeLeadPhone(lead.phone),
+      },
       notes,
     });
   } catch (error) {
@@ -89,7 +98,7 @@ const updateLead = async (req, res) => {
 
     if (typeof name === "string") updates.name = name.trim();
     if (typeof location === "string") updates.location = location.trim();
-    if (typeof phone === "string") updates.phone = phone.trim();
+    if (typeof phone === "string") updates.phone = sanitizeLeadPhone(phone);
     if (typeof email === "string") updates.email = email.trim().toLowerCase();
     if (typeof website === "string") updates.website = website.trim();
     if (typeof status === "string") updates.status = status.trim().toLowerCase();
@@ -112,7 +121,10 @@ const updateLead = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Lead updated successfully.",
-      lead,
+      lead: {
+        ...lead.toObject(),
+        phone: sanitizeLeadPhone(lead.phone),
+      },
     });
   } catch (error) {
     console.error("Error in updateLead:", error);

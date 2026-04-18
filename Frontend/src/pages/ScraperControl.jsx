@@ -113,6 +113,10 @@ function ScraperControl() {
         <button className="primary-button" type="button" onClick={handleStart} disabled={isRunning}>
           {isRunning ? 'Scraping...' : 'Start Scraping'}
         </button>
+
+        <p className="section-copy" role="status" aria-live="polite">
+          Scraping can take time, especially in deep enrichment mode. Please wait on this page until the run finishes.
+        </p>
       </div>
 
       <div className="progress-card">

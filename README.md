@@ -82,6 +82,7 @@ Create Backend/.env with the following values.
 - GROQ_API_KEY: Required for AI generation; fallback mode is used without it
 - GROQ_MODEL: Analysis model (default resolves to llama-3.1-8b-instant)
 - GROQ_EMAIL_MODEL: Optional override model for email generation
+- FRONTEND_ORIGIN: Comma-separated allowed frontend origins for CORS (for example: https://lead-forge-ai-zeta.vercel.app,http://localhost:5173)
 
 ### SMTP (Option 1)
 - SMTP_HOST
